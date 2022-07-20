@@ -14,7 +14,7 @@ class InjectRequest {
         this.initEvents();
         this.startChildStateTimer();
 
-        // -- set current location
+        /* -- set current location */
         document.getElementById('injTxtURL').value = location.href;
     }
 
@@ -77,6 +77,33 @@ class InjectRequest {
         return undefined;
     }
 
+    set(selector, value) {
+        const e = this.query(selector);
+        if (e) {
+            e.value = value;
+        } else {
+            console.error(`Invalid Selector ${selector}`);
+        }
+    }
+
+    get(selector) {
+        const e = this.query(selector);
+        if (e) {
+            return e.value;
+        } else {
+            console.error(`Invalid Selector ${selector}`);
+        }
+    }
+
+    submit(selector) {
+        const e = this.query(selector);
+        if (e) {
+            e.submit();
+        } else {
+            console.error(`Invalid Selector ${selector}`);
+        }
+    }
+
     startChildStateTimer() {
         const me = this;
         if (this.childStateTimer) {
@@ -131,7 +158,7 @@ class InjectRequest {
         const file = await fileHandle.getFile();
         const writableStream = await fileHandle.createWritable({ keepExistingData: true });
 
-        // -- At the end
+        /* -- At the end */
         await writableStream.seek(file.size);
         await writableStream.write(data);
         await writableStream.close();

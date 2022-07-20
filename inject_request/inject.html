@@ -9,16 +9,46 @@
 </head>
 
 <body>
-    <textarea id="txt"></textarea>
+    <button onclick="onClickOriginal()">Original</button>
+    <button onclick="onClickMinified()">Minified</button>
+    <br>
+    <textarea id="txtJS" style="width: 40vw; height: 90vh"></textarea>
+    <textarea id="txtEx" style="width: 55vw; height: 90vh"></textarea>
 </body>
 
 <script>
     async function getJS() {
         const r = await fetch('inject_request.js');
-        const f = await r.response();
-        const t = f.text();
-        console.log(t);
+        const t = await r.text();
+        return t;
     }
+
+    async function getExample() {
+        const r = await fetch('inject_example.js');
+        const t = await r.text();
+        return t;
+    }
+
+    function onClickOriginal() {
+        document.getElementById('txtJS').value = window.org;
+    }
+
+    function onClickMinified() {
+        const lines = window.org.split('\n');
+        const trimmed = lines.map(line =>  line.trim()).join('');
+        document.getElementById('txtJS').value = trimmed;
+
+    }
+
+    (async () => {
+        const js = await getJS();
+        window.org = js;
+
+        onClickMinified();
+
+        const ex = await getExample();
+        document.getElementById('txtEx').value = ex;
+    })();
 </script>
 
 </html>
