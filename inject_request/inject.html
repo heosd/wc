@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inject request</title>
+</head>
+
+<body>
+    <textarea id="txt"></textarea>
+</body>
+
+<script>
+    async function getJS() {
+        const r = await fetch('inject_request.js');
+        const f = await r.response();
+        const t = f.text();
+        console.log(t);
+    }
+</script>
+
+</html>

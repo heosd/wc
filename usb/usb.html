@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebUSB</title>
+</head>
+
+<body>
+
+    <button onclick="testUSBAccess()">Test Access</button>
+    <button onclick="onClickRequestUSBDevices()">Request Devices</button>
+    <div>
+        <ul>
+            <usb-device></usb-device>
+        </ul>
+        <ul id="areaDevices">
+    </div>
+    </div>
+
+    <template id="template-usb-device">
+        <style>
+            li {
+                display: flex;
+                font-family: monospace;
+            }
+
+            div {
+                flex: 2;
+            }
+
+            ::slotted(span) {
+                overflow: hidden;
+            }
+
+            #areaBasic {
+                cursor: pointer;
+            }
+
+            #txtAlternates {
+                flex: 20;
+            }
+        </style>
+
+        <li id="areaBasic">
+            <div>
+                <slot name="vid">VID</slot>
+            </div>
+            <div>
+                <slot name="pid">PID</slot>
+            </div>
+            <div>
+                <slot name="version">Version</slot>
+            </div>
+            <div>
+                <slot name="cls">Class</slot>
+            </div>
+            <div>
+                <slot name="subClass">Subclass</slot>
+            </div>
+            <div>
+                <slot name="protocol">Protocol</slot>
+            </div>
+            <div>
+                <slot name="mfg">MFG</slot>
+            </div>
+            <div style="flex: 8">
+                <slot name="classDesc">Class Desc</slot>
+            </div>
+        </li>
+        <li id="areaDetail" style="display: none;">
+            <!-- Empty space -->
+            <div></div>
+            <div id="txtAlternates">
+            </div>
+        </li>
+    </template>
+
+    <script>
+
+        function testUSBAccess() {
+            try {
+                const testAccessUsb = navigator.usb;
+                console.log(testAccessUsb);
+                alert('Success');
+            } catch (e) {
+                alert('Failure');
+            }
+
+            return false;
+        }
+
+        async function onClickRequestUSBDevices() {
+            const devices = await navigator.usb.requestDevice({ filters: [] });
+            prettyPrintUsbDevices(devices);
+            console.log(devices);
+        }
+
+        async function getDevices() {
+            const devices = await navigator.usb.getDevices();
+
+            const parents = document.getElementById('areaDevices');
+            devices.forEach(device => {
+                const e = new USBDeviceElement();
+                e.setDataSource(device);
+
+                parents.appendChild(e);
+            });
+        }
+
+        function prettyPrintUsbDevices(device) {
+            console.log(device);
+            const obj = USBHelper.PrettyPrint(device);
+            console.log(obj);
+        }
+
+        class USBDeviceElement extends HTMLElement {
+            constructor() {
+                super();
+
+                const me = this;
+                this.execShadow('template-usb-device');
+                this.setOnClick('areaBasic', () => {
+                    const area = me.shadow.getElementById('areaDetail');
+
+                    if (area.style.display === "none") {
+                        area.style.display = "flex";
+                    } else {
+                        area.style.display = "none";
+                    }
+                });
+            }
+
+            setDataSource(ds) {
+                this.ds = ds;
+
+                try {
+                    this.pretty = USBHelper.PrettyPrint(ds);
+                } catch (e) {
+
+                }
+
+                this.refreshChild();
+            }
+
+            refreshChild() {
+                this.innerHTML = ''; // -- clear
+
+                console.log(this.pretty);
+
+                if (this.pretty) {
+                    const p = this.pretty;
+                    this.appendSlot('vid', p.vid.padStart(4, '0'), 'span');
+                    this.appendSlot('pid', p.pid.padStart(4, '0'), 'span');
+                    this.appendSlot('version', p.version, 'span');
+                    this.appendSlot('cls', p.class, 'span');
+                    this.appendSlot('subClass', p.subClass, 'span');
+                    this.appendSlot('protocol', p.protocol, 'span');
+                    this.appendSlot('mfg', p.mfg, 'span');
+                    this.appendSlot('classDesc', p.identify.title, 'span');
+
+                    const alternates = p.alternatesDesc.map(item => item.title).join('</br>');
+                    this.shadow.getElementById('txtAlternates').innerHTML = alternates;
+                }
+            }
+
+            execShadow(templateId) {
+                const e = document.getElementById(templateId);
+                const content = e.content;
+
+                const shadowRoot = this.attachShadow({ mode: 'open' });
+                shadowRoot.appendChild(content.cloneNode(true));
+                this.shadow = shadowRoot;
+            }
+
+            setOnClick(id, fn) {
+                this.shadow.getElementById(id).addEventListener('click', fn);
+            }
+
+            appendSlot(k, v, elementName) {
+                const ename = elementName ?? 'span';
+                const e = document.createElement(ename);
+                e.setAttribute('slot', k);
+                e.innerText = v;
+
+                this.appendChild(e);
+            }
+        }
+
+        customElements.define('usb-device', USBDeviceElement);
+
+
+        class USBHelper {
+            static USBClass =
+                [
+                    { cls: 0x00, descriptor: 'Device', title: 'Use class information in the Interface Descriptors' },
+                    { cls: 0x01, descriptor: 'Interface', title: 'Audio' },
+                    { cls: 0x02, descriptor: 'Both', title: 'Communications and CDC Control' },
+                    { cls: 0x03, descriptor: 'Interface', title: 'HID (Human Interface Device)' },
+                    { cls: 0x05, descriptor: 'Interface', title: 'Physical' },
+                    { cls: 0x06, descriptor: 'Interface', title: 'Image' },
+                    { cls: 0x06, descriptor: 'Interface', title: 'Still Imaging Device', subCls: 0x01, protocol: 0x01 },
+                    { cls: 0x07, descriptor: 'Interface', title: 'Printer' },
+                    { cls: 0x08, descriptor: 'Interface', title: 'Mass Storage' },
+                    { cls: 0x09, descriptor: 'Device', title: 'Hub' },
+                    { cls: 0x09, descriptor: 'Device', title: 'Full speed Hub, 1.0, 12Mbps ', subCls: 0x00, protocol: 0x00 },
+                    { cls: 0x09, descriptor: 'Device', title: 'Hi-speed hub with single TT, 2.0, 480Mbps ', subCls: 0x00, protocol: 0x01 },
+                    { cls: 0x09, descriptor: 'Device', title: 'Hi-speed hub with single TTs, 2.0, 480Mbps ', subCls: 0x00, protocol: 0x02 },
+                    { cls: 0x0A, descriptor: 'Interface', title: 'CDC-Data' },
+                    { cls: 0x0B, descriptor: 'Interface', title: 'Smart Card' },
+                    { cls: 0x0D, descriptor: 'Interface', title: 'Content Security' },
+                    { cls: 0x0E, descriptor: 'Interface', title: 'Video' },
+                    { cls: 0x0F, descriptor: 'Interface', title: 'Personal Healthcare' },
+                    { cls: 0x10, descriptor: 'Interface', title: 'Audio/Video Devices' },
+                    { cls: 0x10, descriptor: 'Interface', title: 'Audio/Video Devices - AVControl Interface', subCls: 0x01, protocol: 0x00 },
+                    { cls: 0x10, descriptor: 'Interface', title: 'Audio/Video Devices - AVData Video Streaming Interface', subCls: 0x02, protocol: 0x00 },
+                    { cls: 0x10, descriptor: 'Interface', title: 'Audio/Video Devices - AVData Audio Streaming Interface', subCls: 0x03, protocol: 0x00 },
+                    { cls: 0x11, descriptor: 'Device', title: 'Billboard Device Class' },
+                    { cls: 0x12, descriptor: 'Interface', title: 'USB Type-C Bridge Class' },
+                    { cls: 0x3C, descriptor: 'Interface', title: 'I3C Device Class' },
+                    { cls: 0xDC, descriptor: 'Both', title: 'Diagnostic Device' },
+                    { cls: 0xE0, descriptor: 'Interface', title: 'Wireless Controller' },
+                    { cls: 0xEF, descriptor: 'Both', title: 'Miscellaneous' },
+                    { cls: 0xFE, descriptor: 'Interface', title: 'Application Specific' },
+                    { cls: 0xFF, descriptor: 'Both', title: 'Vendor Specific' },
+                ];
+
+            static IdentifyClass(cls, subCls, protocol) {
+                const result = [];
+                USBHelper.USBClass.forEach(item => {
+                    if (item.cls !== cls) {
+                        return;
+                    }
+
+                    let level = 1;
+                    if ('number' === typeof subCls && item.subCls === subCls) {
+                        level = 2;
+
+                        if ('number' === typeof protocol && item.protocol === protocol) {
+                            level = 3;
+                        }
+                    }
+
+                    result.push([level, item]);
+                });
+
+                if (0 < result.length) {
+                    result.sort((a, b) => {
+                        if (a.level > b.level) {
+                            return -1;
+                        } else if (a.level < b.level) {
+                            return 1;
+                        }
+                        return 0;
+                    });
+
+                    return result[0][1];
+                }
+
+                return undefined;
+            }
+
+            static GetAllAlternates(device) {
+                const listAlternates = [];
+                const result = { numConfigurations: 0, numInterfaces: 0, numAlternates: 0, alternates: listAlternates };
+
+                result.numConfigurations = device.configurations.length;
+                for (let i = 0; i < device.configurations.length; i++) {
+                    const configuration = device.configurations[i];
+                    result.numInterfaces = result.numInterfaces + configuration.interfaces.length;
+
+                    for (let j = 0; j < configuration.interfaces.length; j++) {
+                        const ifs = configuration.interfaces[j];
+                        result.numAlternates = result.numAlternates + ifs.alternates.length;
+
+                        for (let k = 0; k < ifs.alternates.length; k++) {
+                            const alternate = ifs.alternates[k];
+                            listAlternates.push(alternate);
+                        }
+                    }
+                }
+
+                return result;
+            }
+
+            static PrettyPrint(device) {
+                // console.log(device);
+                const obj = {
+                    vid: device.vendorId.toString(16),
+                    pid: device.productId.toString(16),
+                    version: device.deviceVersionMajor + '.' + device.deviceVersionMinor,
+                    mfg: device.manufacturerName,
+                    productName: device.productName,
+                    class: device.deviceClass,
+                    subClass: device.deviceSubclass,
+                    protocol: device.deviceProtocol,
+                }
+
+                const usbif = USBHelper.IdentifyClass(device.deviceClass, device.deviceSubclass, device.deviceProtocol);
+                obj.identify = usbif;
+
+                const alternates = USBHelper.GetAllAlternates(device);
+                const ifDesc = alternates.alternates.map(item => USBHelper.IdentifyClass(item.interfaceClass, item.interfaceSubclass, item.interfaceProtocol));
+                obj.alternates = alternates;
+                obj.alternatesDesc = ifDesc;
+
+                return obj;
+            }
+        }
+
+        getDevices();
+
+    </script>
+</body>
+
+</html>
