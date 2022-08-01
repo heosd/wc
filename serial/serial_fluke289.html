@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fluke 289, ID QM</title>
+    <style>
+    </style>
+</head>
+
+<body>
+
+    <div>
+        <button onclick="onClickOpenSerial()">Open Serial</button>
+        <button onclick="lfile.selectFileWrite()">Select Output file</button>
+
+        <h3>ID : <span id="txtFlukeID">-- Not Identified --</span></h3>
+        <h3>IN : <span id="areaText"></span></h3>
+    </div>
+
+    <terminal-window id="terminalWindow" style="width: 400px; height: 200px;" data-lock="false" data-ts="false"
+        data-hex="false">
+    </terminal-window>
+    <br>
+
+    <button onclick="onClickClearPlot()">Clear Plot</button>
+    <br>
+    <canvas id="plot" is="plot-basic" width="700" height="500" data-margin="100"></canvas>
+    <h2><span id="lastValue"></span></h2>
+
+    <script src="terminal_window.js"></script>
+    <script src="local_serial.js"></script>
+    <!-- <script src="local_file.js"></script> -->
+    <script src="../plot/plot_basic.js"></script>
+    <script>
+        // const ti = document.getElementById('terminalInput');
+        const tw = document.getElementById('terminalWindow');
+        const areaText = document.getElementById('areaText');
+        const plot = document.getElementById('plot');
+
+        // const lfile = new LocalFile();
+
+        function txtLog(text, seconds) {
+            const e = document.createElement('span');
+            e.textContent = text;
+            areaText.appendChild(e);
+
+            if (0 < seconds) {
+                setTimeout(() => {
+                    e.remove();
+                }, seconds * 1000);
+            }
+        }
+
+        async function onClickOpenSerial() {
+            const serial = new LocalSerial();
+            const baudRate = 115200;
+            try {
+                await serial.open(~~baudRate);
+                tw.pushLine('Serial opened');
+                window.serial = serial;
+                checkID289();
+            } catch (e) {
+                console.error(e);
+                alert('Failed to open');
+            }
+            serial.setOnAll((v) => {
+                txtLog(v, 0.5);
+
+                // lfile.bufferdAppend(v);
+            });
+        }
+
+        function checkID289() {
+            serial.write('ID\r\n');
+
+            serial.setOnEnter((line) => {
+                tw.pushLine(line);
+
+                if (-1 < line.indexOf('FLUKE 289')) {
+                    document.getElementById('txtFlukeID').textContent = line;
+
+                    startIntetval();
+                }
+            });
+        }
+
+        function startIntetval() {
+            stopInterval();
+
+            window.timer = setInterval(() => {
+                serial.write('QM\r\n');
+            }, 1000);
+
+            serial.setOnEnter((line) => {
+                tw.pushLine(line);
+                parseFlukeLineQM(line);
+            });
+        }
+
+        function stopInterval() {
+            if (window.timer) {
+                clearInterval(window.timer);
+                window.timer = undefined;
+            }
+        }
+
+        function parseFlukeLineQM(line) {
+            if (-1 === line.indexOf(',')) {
+                return;
+            }
+
+            const qm = line.split(',');
+            if (4 !== qm.length) {
+                return;
+            }
+
+            const value = parseFloat(qm[0]);
+
+            const type = qm[1];
+            const ol = qm[2];
+
+            if (window.lastType !== type || window.lastOL !== ol) {
+                onClickClearPlot();
+            }
+
+            window.lastType = type;
+            window.lastOL = ol;
+
+            document.getElementById('lastValue').textContent = `${value} ${type}, ${ol}`;
+
+            plot.push(value);
+        }
+
+        function onClickClearPlot() {
+            plot.setDataSource([]);
+        }
+
+    </script>
+</body>
+
+</html>
