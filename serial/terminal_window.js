@@ -32,20 +32,21 @@ class TerminalWindow extends HTMLElement {
     }
 
     .cls-ts {
-        flex: 1 1 200px;
+        flex: 1 200px;
         overflow: hidden;
         border-right: 1px solid #eee;
     }
 
     .cls-text {
-        flex: 10 1 auto;
-        padding-left: 5px;
+        flex: 10;
+        padding-left: 7px;
         margin-right: 5px;
     }
 
     .cls-hex {
-        flex: 1 1 240px;
+        flex: 2 360px;
         overflow: hidden;
+        padding-left: 7px;
         border-left: 1px solid #eee;
     }
 </style>
@@ -203,7 +204,7 @@ class TerminalWindow extends HTMLElement {
         // -- timestamp
         l1.classList.add('cls-ts');
         const now = new Date();
-        l1.textContent = now.toLocaleString('en-CA');
+        l1.textContent = now.toLocaleString('af');
         l1.setAttribute('data-ms', now.getTime());
         TerminalWindow.AddChildHideClass([l1], this.#displayTS);
 
