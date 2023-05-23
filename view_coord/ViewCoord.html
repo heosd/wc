@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ViewCoord and SVG Example</title>
+</head>
+
+<body>
+    <button onclick="onClickZoom(1)">+1</button>
+    <button onclick="onClickZoom(-1)">-1</button>
+    <div>
+
+        <svg id="svg" xmlns="http://www.w3.org/2000/svg" style="width: 1000px; height: 1000px; border: 1px solid black"
+            tabindex="0" pointer-events="all">
+            <defs>
+                <linearGradient id="gg" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" style="stop-color:rgb(255,255,0);stop-opacity:1" />
+                    <stop offset="100%" style="stop-color:rgb(255,0,0);stop-opacity:1" />
+                </linearGradient>
+            </defs>
+            <circle fill='url(#gg)' cx="500" cy="500" r="1000" pointer-events="none" />
+            <rect x="200" y="200" width="100" height="100" fill="none" stroke="red" stroke-width="5"
+                pointer-events="none"></rect>
+        </svg>
+    </div>
+
+    <script src="./ViewCoord.js"></script>
+    <script>
+        function onClickZoom(v) {
+            coord.plusRatioIdx(v);
+            const svg = document.getElementById('svg');
+            svg.setAttributeNS(null, 'viewBox', coord.getViewBox());
+        }
+
+        function initEvent(svg) {
+            // -- A original coordinate
+            // -- B view coordinate
+
+            const coord = new ViewCoord();
+
+            const rect = svg.getBoundingClientRect();
+            coord.B(rect.width, rect.height);
+            svg.setAttributeNS(null, 'viewBox', coord.getViewBox());
+
+            let AMove = [], ADown = [];
+            let BMove = [], BDown = [];
+            let lastCreatedRect = undefined;
+            let selectedRect = undefined, selectedRectCursor = [];
+            let selectedRectSize = undefined;
+            let selectedDrag = false; // bool
+
+            function dismiss() {
+                lastCreatedRect = undefined;
+                selectedRect = undefined;
+                selectedRectSize = undefined;
+                selectedDrag = false;
+            }
+
+            // -- no right click menu
+            svg.addEventListener('contextmenu', (e) => e.preventDefault());
+            svg.addEventListener('mouseup', e => {
+
+                // -- finish up drag
+                if (selectedDrag) {
+                    const vb = svg.getAttributeNS(null, 'viewBox').split(' ').map(parseFloat);
+                    coord.A(vb[0], vb[1]);
+                }
+                dismiss();
+            });
+            svg.addEventListener('mouseout', e => dismiss());
+
+            svg.addEventListener('mousemove', (e) => {
+                AMove = coord.getAPos(e.offsetX, e.offsetY);
+                BMove = [e.offsetX, e.offsetY];
+
+                if (lastCreatedRect) {
+                    const lcrx = parseFloat(lastCreatedRect.getAttributeNS(null, 'x'));
+                    const lcry = parseFloat(lastCreatedRect.getAttributeNS(null, 'y'));
+
+                    const w = AMove[0] - lcrx;
+                    const h = AMove[1] - lcry;
+
+                    if(w > 0 && h > 0) {
+                        lastCreatedRect.setAttributeNS(null, 'width', w);
+                        lastCreatedRect.setAttributeNS(null, 'height', h);
+                    }
+
+                } else if (selectedRect) {
+                    const x = AMove[0] + coord.scaleX(e.movementX) - selectedRectCursor[0];
+                    const y = AMove[1] + coord.scaleY(e.movementY) - selectedRectCursor[1];
+                    selectedRect.setAttributeNS(null, 'x', x);
+                    selectedRect.setAttributeNS(null, 'y', y);
+                } else if (selectedRectSize) {
+                    const w = parseFloat(selectedRectSize.getAttributeNS(null, 'width'));
+                    const h = parseFloat(selectedRectSize.getAttributeNS(null, 'height'));
+
+                    const xx = coord.scaleX(e.movementX);
+                    const yy = coord.scaleY(e.movementY);
+
+                    selectedRectSize.setAttributeNS(null, 'width', w + xx);
+                    selectedRectSize.setAttributeNS(null, 'height', h + yy);
+                } else if (selectedDrag) {
+                    // -- just move x y
+                    const x = BMove[0] - BDown[0];
+                    const y = BMove[1] - BDown[1];
+
+                    const xx = coord.scaleX(x);
+                    const yy = coord.scaleX(y);
+
+                    const vb = svg.getAttributeNS(null, 'viewBox').split(' ').map(parseFloat);
+
+                    // -- just temporal move, finish up at mouseup event
+                    const newVB = `${coord.x - xx} ${coord.y - yy} ${vb[2]} ${vb[3]}`;
+                    svg.setAttributeNS(null, 'viewBox', newVB);
+                }
+            });
+
+            svg.addEventListener('mousedown', (e) => {
+                ADown = coord.getAPos(e.offsetX, e.offsetY);
+                BDown = [e.offsetX, e.offsetY];
+
+                if (lastCreatedRect) {
+                    return;
+                }
+
+                // -- select and move
+                const selected = Array.from(svg.querySelectorAll('rect')).reverse().find(r => {
+                    const xywh = ['x', 'y', 'width', 'height'].map(k => parseFloat(r.getAttributeNS(null, k)));
+                    const x1 = xywh[0];
+                    const x2 = x1 + xywh[2];
+                    const y1 = xywh[1];
+                    const y2 = y1 + xywh[3];
+
+                    if (x1 <= ADown[0] && ADown[0] <= x2 &&
+                        y1 <= ADown[1] && ADown[1] <= y2) {
+                        return true;
+                    }
+
+                    return false;
+                });
+
+                if (selected) {
+                    // -- left
+                    if (0 === e.button) {
+                        selectedRect = selected;
+                    } else if (2 === e.button) {
+                        selectedRectSize = selected;
+                    }
+
+                    // -- selectedRectCursor is common
+                    const x1 = parseFloat(selected.getAttributeNS(null, 'x'));
+                    const y1 = parseFloat(selected.getAttributeNS(null, 'y'));
+                    selectedRectCursor = [ADown[0] - x1, ADown[1] - y1];
+                } else {
+                    selectedDrag = true;
+                }
+            });
+
+            svg.addEventListener('wheel', (e) => {
+                const APos1 = [AMove[0], AMove[1]];
+
+                if (0 < e.deltaY) {
+                    // -- smaller, wheel down
+                    coord.plusRatioIdx(-1);
+                } else if (0 > e.deltaY) {
+                    // bigger, wheel up
+                    coord.plusRatioIdx(1);
+                }
+
+                const APos2 = coord.getAPos(e.offsetX, e.offsetY);
+
+                const xx = coord.x + APos1[0] - APos2[0];
+                const yy = coord.y + APos1[1] - APos2[1];
+
+                coord.A(xx, yy);
+
+                svg.setAttributeNS(null, 'viewBox', coord.getViewBox());
+            }, { passive: true });
+
+            function createUserRect() {
+                const obj = {
+                    x: AMove[0], y: AMove[1], width: 3, height: 3,
+                    fill: 'none', stroke: 'red', 'stroke-width': 5,
+                    'pointer-events': 'none'
+                };
+
+                const r = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                for (const [k, v] of Object.entries(obj)) {
+                    r.setAttributeNS(null, k, v);
+                }
+
+                svg.appendChild(r);
+                lastCreatedRect = r;
+
+            }
+
+            return {
+                createUserRect: createUserRect,
+                coord: coord,
+            }
+        }
+
+        const events = initEvent(svg = document.getElementById('svg'));
+        window.addEventListener('keyup', (e) => {
+            if ('1' === e.key) {
+                // -- create a rect at mouse position
+                events.createUserRect();
+            }
+        });
+    </script>
+</body>
+
+</html>
