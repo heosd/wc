@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Label with image</title>
+
+    <style>
+        body {
+            padding: 0px;
+            margin: 0px;
+        }
+
+        section {
+            width: 100%;
+            height: 100%;
+        }
+
+        .abs-center {
+            margin: 0;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        .center {
+            margin: auto;
+            width: 50%;
+            border: 3px solid green;
+            padding: 10px;
+        }
+
+        .file {
+            border: 2px solid green;
+            border-radius: 25px;
+            width: 60vw;
+            height: 30vh;
+        }
+
+        .file::file-selector-button {
+            visibility: hidden;
+        }
+
+        .file::before {
+            content: 'Put some Images';
+            width: 100%;
+            text-align: center;
+            display: inline-block;
+            cursor: pointer;
+        }
+
+        header {
+            display: grid;
+            grid-template-columns: 1fr 2fr 1fr 1fr 1fr 2fr 1fr 1fr;
+            grid-column-gap: 0px;
+            font-size: 1.5rem;
+            font-weight: 800;
+        }
+
+        .pointer {
+            cursor: pointer;
+        }
+
+
+        #area-edit {
+            border: 1px solid black;
+        }
+
+        .section-main {
+            display: grid;
+            grid-template-columns: 8fr 2fr;
+            grid-column-gap: 0px;
+        }
+
+        .hide-before {
+            display: none;
+        }
+
+    </style>
+</head>
+
+<body>
+    <header class="hide-before">
+        <div><span id="arrowLeft" class="pointer" onclick="onClickFile(-1)">&ShortLeftArrow; Prev</span></div>
+        <div><span id="txtFileName"></span></div>
+        <div><span id="arrowRight" class="pointer" onclick="onClickFile(1)">Next &ShortRightArrow;</span></div>
+        <div><span id="txtFileIndex"></span></div>
+        <div><span id="txtFileInfo1"></span></div>
+        <div><span id="txtFileInfo2"></span></div>
+        <div>
+            <button onclick="onClickExportYOLO()">YOLO</button>
+        </div>
+    </header>
+    <section id="section-main" class="section-main hide-before">
+        <article id="area-edit">
+            <svg id="svg" xmlns="http://www.w3.org/2000/svg" style="width: 1000px; height: 1000px;"
+                pointer-events="all">
+                <defs>
+                    <linearGradient id="gg" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" style="stop-color:rgb(255,255,0);stop-opacity:1" />
+                        <stop offset="100%" style="stop-color:rgb(255,0,0);stop-opacity:1" />
+                    </linearGradient>
+                </defs>
+                <image id="svg-image" pointer-events="none"></image>
+                <!-- <circle fill='url(#gg)' cx="500" cy="500" r="1000" pointer-events="none" /> -->
+                <!-- <rect x="200" y="200" width="100" height="100" fill="none" stroke="red" stroke-width="5"
+                    pointer-events="none"></rect> -->
+            </svg>
+        </article>
+        <article id="area-list"></article>
+        <article id="area-result">
+            <textarea id="txtResult" cols="120" rows="10"></textarea>
+        </article>
+    </section>
+
+    <section id="section-local-file">
+        <div class="abs-center">
+            <input type="file" class="file" onchange="onChangeFile(this)" multiple accept="image/*">
+        </div>
+
+        <div class="abs-center" style="display: none"></div>
+    </section>
+
+    <!-- <button onclick="onClickZoom(1)">+1</button>
+    <button onclick="onClickZoom(-1)">-1</button> -->
+    <div>
+    </div>
+
+    <script>
+        class LabelFileManager {
+            #images = [];
+            // #labels = new Map(); // key - filename
+            #meta = new Map(); // key - filename
+            #idx = 0;
+
+            addImage(file) {
+                this.#images.push(file);
+                this.#meta.set(file.name, {
+                    name: file.name
+                })
+            }
+
+            // -- only currents
+            set labels(value) {
+                this.meta.labels = value;
+            }
+
+            get labels() {
+                return this.meta.labels;
+            }
+
+            get allMetas() {
+                return this.#meta;
+            }
+
+            get meta() {
+                const key = this.getCurrent().name;
+                return this.#meta.get(key);
+            }
+
+            setMeta(k, v) {
+                this.meta.set(k, v);
+            }
+
+            set idx(i) {
+                this.#idx = i;
+                if (0 > this.#idx) {
+                    this.#idx = 0;
+                } else if (this.#images.length <= this.#idx) {
+                    this.#idx = this.#images.length - 1;
+                }
+            }
+
+            get idx() {
+                return this.#idx;
+            }
+
+            hasNext() {
+                if ((this.#images.length - 1) <= this.#idx) {
+                    return false;
+                }
+
+                return true;
+            }
+
+            hasPrev() {
+                if (0 < this.#idx) {
+                    return true;
+                }
+
+                return false;
+            }
+
+            next() {
+                this.idx = this.idx + 1;
+            }
+
+            prev() {
+                this.idx = this.idx - 1;
+            }
+
+            getCurrent() {
+                return this.#images[this.#idx];
+            }
+
+            get images() {
+                return this.#images;
+            }
+
+            get count() {
+                return this.#images.length;
+            }
+        }
+
+        const fileManager = new LabelFileManager();
+
+        function onChangeFile(e) {
+            Array.from(e.files).forEach(file => fileManager.addImage(file));
+
+            showMain();
+
+            // -- show current file
+            setTimeout(() => {
+                onClickFile(0);
+            }, 100);
+        }
+
+        // -- none blocking function
+        function setSVGImage(file) {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = () => {
+                const img = document.getElementById('svg-image');
+                img.setAttribute('href', reader.result);
+
+                const rect = img.getBoundingClientRect();
+                const info = document.getElementById('txtFileInfo1')
+                info.textContent = `${rect.width} x ${rect.height}`;
+
+                // -- kinda weired but width height updated here
+                fileManager.meta.width = rect.width;
+                fileManager.meta.height = rect.height;
+            }
+
+            reader.onerror = (e) => {
+                console.error(e);
+            }
+        }
+
+        function showMain() {
+            document.getElementById('section-local-file').style.display = 'none';
+            document.getElementById('section-main').style.display = 'grid';
+            document.querySelectorAll('.hide-before').forEach(d => d.classList.remove('hide-before'));
+
+            initSVG();
+            refreshHeader();
+        }
+
+        function refreshHeader() {
+            if (fileManager.hasPrev()) {
+                document.getElementById('arrowLeft').style.display = 'inline-block';
+            } else {
+                document.getElementById('arrowLeft').style.display = 'none';
+            }
+
+            if (fileManager.hasNext()) {
+                document.getElementById('arrowRight').style.display = 'inline-block';
+            } else {
+                document.getElementById('arrowRight').style.display = 'none';
+            }
+
+            const strIdx = `${fileManager.idx + 1} / ${fileManager.count}`;
+            document.getElementById('txtFileName').textContent = fileManager.getCurrent().name;
+            document.getElementById('txtFileIndex').textContent = strIdx;
+        }
+
+        function onClickFile(rel) {
+            if (0 !== rel) {
+                saveRect();
+            }
+
+            if (-1 === rel) {
+                fileManager.prev();
+            } else if (1 === rel) {
+                fileManager.next();
+            }
+
+            refreshHeader();
+
+            // -- change background
+            const file = fileManager.getCurrent();
+            setSVGImage(file);
+            restoreRect();
+        }
+
+        function saveRect() {
+            const list = svgLabel.getRectList();
+            fileManager.labels = list;
+        }
+
+        function restoreRect() {
+            svgLabel.resetRect();
+            const list = fileManager.labels;
+            if (list) {
+                svgLabel.setRectList(list);
+            }
+        }
+    </script>
+
+
+    <script src="./ViewCoord.js"></script>
+    <script>
+        function onClickZoom(v) {
+            coord.plusRatioIdx(v);
+            const svg = document.getElementById('svg');
+            svg.setAttributeNS(null, 'viewBox', coord.getViewBox());
+        }
+
+        function initEvent(svg) {
+            // -- A original coordinate
+            // -- B view coordinate
+
+            const coord = new ViewCoord();
+
+            const rect = svg.getBoundingClientRect();
+            coord.B(rect.width, rect.height);
+            svg.setAttributeNS(null, 'viewBox', coord.getViewBox());
+
+            let AMove = [], ADown = [];
+            let BMove = [], BDown = [];
+            let lastCreatedRect = undefined;
+            let selectedRect = undefined, selectedRectCursor = [];
+            let selectedRectSize = undefined;
+            let selectedDrag = false; // bool
+
+            function dismiss() {
+                lastCreatedRect = undefined;
+                selectedRect = undefined;
+                selectedRectSize = undefined;
+                selectedDrag = false;
+
+                fnDismiss();
+            }
+
+            // -- no right click menu
+            svg.addEventListener('contextmenu', (e) => e.preventDefault());
+            svg.addEventListener('mouseup', e => {
+
+                // -- finish up drag
+                if (selectedDrag) {
+                    const vb = svg.getAttributeNS(null, 'viewBox').split(' ').map(parseFloat);
+                    coord.A(vb[0], vb[1]);
+                }
+
+                if (selectedRectSize) {
+                    selectedRectSize.removeAttribute('data-wdown');
+                    selectedRectSize.removeAttribute('data-hdown');
+                }
+                dismiss();
+            });
+            svg.addEventListener('mouseout', e => dismiss());
+
+            svg.addEventListener('mousemove', (e) => {
+                AMove = coord.getAPos(e.offsetX, e.offsetY);
+                BMove = [e.offsetX, e.offsetY];
+
+                if (lastCreatedRect) {
+                    const lcrx = parseFloat(lastCreatedRect.getAttributeNS(null, 'x'));
+                    const lcry = parseFloat(lastCreatedRect.getAttributeNS(null, 'y'));
+
+                    const w = AMove[0] - lcrx;
+                    const h = AMove[1] - lcry;
+
+                    if (w > 0 && h > 0) {
+                        lastCreatedRect.setAttributeNS(null, 'width', w);
+                        lastCreatedRect.setAttributeNS(null, 'height', h);
+                    }
+
+                } else if (selectedRect) {
+                    const x = AMove[0] - selectedRectCursor[0];
+                    const y = AMove[1] - selectedRectCursor[1];
+                    selectedRect.setAttributeNS(null, 'x', x);
+                    selectedRect.setAttributeNS(null, 'y', y);
+                } else if (selectedRectSize) {
+                    // -- wdown hdown is set when mousedown
+                    const w = parseFloat(selectedRectSize.getAttributeNS(null, 'data-wdown'));
+                    const h = parseFloat(selectedRectSize.getAttributeNS(null, 'data-hdown'));
+
+                    const xx = AMove[0] - ADown[0];
+                    const yy = AMove[1] - ADown[1];
+
+                    selectedRectSize.setAttributeNS(null, 'width', w + xx);
+                    selectedRectSize.setAttributeNS(null, 'height', h + yy);
+                } else if (selectedDrag) {
+                    // -- just move x y
+                    const x = BMove[0] - BDown[0];
+                    const y = BMove[1] - BDown[1];
+
+                    const xx = coord.scaleX(x);
+                    const yy = coord.scaleX(y);
+
+                    const vb = svg.getAttributeNS(null, 'viewBox').split(' ').map(parseFloat);
+
+                    // -- just temporal move, finish up at mouseup event
+                    const newVB = `${coord.x - xx} ${coord.y - yy} ${vb[2]} ${vb[3]}`;
+                    svg.setAttributeNS(null, 'viewBox', newVB);
+                    noteViewBoxChanged();
+                }
+            });
+
+            svg.addEventListener('mousedown', (e) => {
+                ADown = coord.getAPos(e.offsetX, e.offsetY);
+                BDown = [e.offsetX, e.offsetY];
+
+                if (lastCreatedRect) {
+                    return;
+                }
+
+                // -- select and move
+                const selected = Array.from(svg.querySelectorAll('rect')).reverse().find(r => {
+                    const xywh = ['x', 'y', 'width', 'height'].map(k => parseFloat(r.getAttributeNS(null, k)));
+                    const x1 = xywh[0];
+                    const x2 = x1 + xywh[2];
+                    const y1 = xywh[1];
+                    const y2 = y1 + xywh[3];
+
+                    if (x1 <= ADown[0] && ADown[0] <= x2 &&
+                        y1 <= ADown[1] && ADown[1] <= y2) {
+                        return true;
+                    }
+
+                    return false;
+                });
+
+                if (selected) {
+                    // -- left
+                    if (0 === e.button) {
+                        selectedRect = selected;
+                    } else if (2 === e.button) {
+                        selectedRectSize = selected;
+                        // wdown, hdown when selected
+                        selectedRectSize.setAttributeNS(null, 'data-wdown', selectedRectSize.getAttributeNS(null, 'width'));
+                        selectedRectSize.setAttributeNS(null, 'data-hdown', selectedRectSize.getAttributeNS(null, 'height'));
+                    }
+
+                    // -- selectedRectCursor is common
+                    const x1 = parseFloat(selected.getAttributeNS(null, 'x'));
+                    const y1 = parseFloat(selected.getAttributeNS(null, 'y'));
+                    selectedRectCursor = [ADown[0] - x1, ADown[1] - y1];
+                } else {
+                    selectedDrag = true;
+                }
+            });
+
+            svg.addEventListener('wheel', (e) => {
+                const APos1 = [AMove[0], AMove[1]];
+
+                if (0 < e.deltaY) {
+                    // -- smaller, wheel down
+                    coord.plusRatioIdx(-1);
+                } else if (0 > e.deltaY) {
+                    // bigger, wheel up
+                    coord.plusRatioIdx(1);
+                }
+
+                const APos2 = coord.getAPos(e.offsetX, e.offsetY);
+
+                const xx = coord.x + APos1[0] - APos2[0];
+                const yy = coord.y + APos1[1] - APos2[1];
+
+                coord.A(xx, yy);
+
+                svg.setAttributeNS(null, 'viewBox', coord.getViewBox());
+                noteViewBoxChanged();
+
+                // -- prevent scroll down in small window
+                e.preventDefault();
+            }, { passive: false });
+
+            function getRectObj() {
+                const obj = {
+                    x: 0, y: 0, width: 3, height: 3,
+                    fill: 'none', stroke: 'red', 'stroke-width': 5,
+                    'pointer-events': 'none'
+                };
+
+                return JSON.parse(JSON.stringify(obj));
+            }
+
+            function createUserRect() {
+                const obj = getRectObj();
+                obj.x = AMove[0];
+                obj.y = AMove[1];
+
+                const r = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                for (const [k, v] of Object.entries(obj)) {
+                    r.setAttributeNS(null, k, v);
+                }
+
+                svg.appendChild(r);
+                lastCreatedRect = r;
+            }
+
+            const LIST_XYWHG = ['x', 'y', 'width', 'height', 'data-group'];
+
+            function getRectList() {
+                const list = [];
+                svg.querySelectorAll('rect').forEach(rect => {
+                    const obj = {};
+                    LIST_XYWHG.forEach(k => {
+                        obj[k] = rect.getAttributeNS(null, k);
+                    });
+                    list.push(obj);
+                });
+
+                return list;
+            }
+
+            function setRectList(list) {
+                list.forEach(obj => {
+                    console.log(obj);
+                    // -- default rect obj attributes
+                    const rectObj = getRectObj();
+                    // -- copy values
+                    LIST_XYWHG.forEach(k => rectObj[k] = obj[k]);
+                    // -- create rect
+                    console.log(rectObj);
+                    const r = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                    for (const [k, v] of Object.entries(rectObj)) {
+                        r.setAttributeNS(null, k, v);
+                    }
+
+                    svg.appendChild(r);
+                });
+            }
+
+            function resetRect() {
+                svg.querySelectorAll('rect').forEach(rect => rect.remove());
+            }
+
+            function noteViewBoxChanged() {
+                const vb = svg.getAttributeNS(null, 'viewBox');
+                const r = coord.ratio;
+
+                fnViewBoxChange(vb, r);
+            }
+
+            let fnViewBoxChange = (viewBox, ratio) => { };
+            let fnDismiss = () => { };
+
+            return {
+                createUserRect: createUserRect,
+                coord: coord,
+                getRectList: getRectList,
+                setRectList: setRectList,
+                resetRect: resetRect,
+                setOnViewBoxChangeListener: (fn) => fnViewBoxChange = fn,
+                setOnDismissListener: (fn) => fnDismiss = fn,
+            }
+        }
+
+        function initSVG() {
+            const info2 = document.getElementById('txtFileInfo2');
+            const svgLabel = initEvent(document.getElementById('svg'));
+            svgLabel.setOnViewBoxChangeListener((viewBox, ratio) => {
+                const vb = viewBox.split(' ').map(parseFloat); // just floor
+                info2.textContent = `${ratio / 1 * 100}% (${~~vb[0]}, ${~~vb[1]})`;
+            });
+
+            svgLabel.setOnDismissListener(() => {
+                saveRect();
+            });
+
+            window.svgLabel = svgLabel;
+            window.addEventListener('keyup', (e) => {
+                if ('1' === e.key) {
+                    // -- create a rect at mouse position
+                    svgLabel.createUserRect();
+                }
+            });
+        }
+
+        function onClickExportYOLO() {
+            const map = fileManager.allMetas;
+            const fixed = 5;
+
+            const result = document.getElementById('txtResult');
+            const lines = [];
+
+            map.forEach((v, k) => {
+                const fileName = k;
+                lines.push(fileName);
+                if (0 < v.width && 0 < v.height && v.labels?.length) {
+                    const scaleX = ViewCoord.scaleLinear([0, v.width], [0, 1]);
+                    const scaleY = ViewCoord.scaleLinear([0, v.height], [0, 1]);
+                    const listYoloItem = [];
+
+                    v.labels.forEach(label => {
+                        const x = parseInt(label.x);
+                        const y = parseInt(label.y);
+                        const w = parseInt(label.width);
+                        const h = parseInt(label.height);
+                        const cx = x + parseInt(w / 2);
+                        const cy = y + parseInt(h / 2);
+                        const x1 = scaleX(cx).toFixed(fixed);
+                        const y1 = scaleX(cy).toFixed(fixed);
+                        const w1 = scaleX(w).toFixed(fixed);
+                        const h1 = scaleX(h).toFixed(fixed);
+                        const group = '1'; // TODO Change group
+
+                        const str = `${group} ${x1} ${y1} ${w1} ${h1}`;
+                        listYoloItem.push(str);
+                    });
+
+                    lines.push(...listYoloItem);
+                }
+            });
+
+            result.value = lines.join('\n')
+        }
+
+    </script>
+</body>
+
+</html>

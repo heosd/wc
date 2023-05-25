@@ -13,8 +13,8 @@
     <button onclick="onClickZoom(-1)">-1</button>
     <div>
 
-        <svg id="svg" xmlns="http://www.w3.org/2000/svg" style="width: 1000px; height: 1000px; border: 1px solid black"
-            tabindex="0" pointer-events="all">
+         <svg id="svg" xmlns="http://www.w3.org/2000/svg" style="width: 1000px; height: 1000px;"
+                pointer-events="all">
             <defs>
                 <linearGradient id="gg" x1="0%" y1="0%" x2="100%" y2="0%">
                     <stop offset="0%" style="stop-color:rgb(255,255,0);stop-opacity:1" />
@@ -30,6 +30,7 @@
     <script src="./ViewCoord.js"></script>
     <script>
         function onClickZoom(v) {
+            coord = events.coord;
             coord.plusRatioIdx(v);
             const svg = document.getElementById('svg');
             svg.setAttributeNS(null, 'viewBox', coord.getViewBox());
@@ -68,6 +69,11 @@
                     const vb = svg.getAttributeNS(null, 'viewBox').split(' ').map(parseFloat);
                     coord.A(vb[0], vb[1]);
                 }
+
+                if (selectedRectSize) {
+                    selectedRectSize.removeAttribute('data-wdown');
+                    selectedRectSize.removeAttribute('data-hdown');
+                }
                 dismiss();
             });
             svg.addEventListener('mouseout', e => dismiss());
@@ -83,22 +89,23 @@
                     const w = AMove[0] - lcrx;
                     const h = AMove[1] - lcry;
 
-                    if(w > 0 && h > 0) {
+                    if (w > 0 && h > 0) {
                         lastCreatedRect.setAttributeNS(null, 'width', w);
                         lastCreatedRect.setAttributeNS(null, 'height', h);
                     }
 
                 } else if (selectedRect) {
-                    const x = AMove[0] + coord.scaleX(e.movementX) - selectedRectCursor[0];
-                    const y = AMove[1] + coord.scaleY(e.movementY) - selectedRectCursor[1];
+                    const x = AMove[0] - selectedRectCursor[0];
+                    const y = AMove[1] - selectedRectCursor[1];
                     selectedRect.setAttributeNS(null, 'x', x);
                     selectedRect.setAttributeNS(null, 'y', y);
                 } else if (selectedRectSize) {
-                    const w = parseFloat(selectedRectSize.getAttributeNS(null, 'width'));
-                    const h = parseFloat(selectedRectSize.getAttributeNS(null, 'height'));
+                    // -- wdown hdown is set when mousedown
+                    const w = parseFloat(selectedRectSize.getAttributeNS(null, 'data-wdown'));
+                    const h = parseFloat(selectedRectSize.getAttributeNS(null, 'data-hdown'));
 
-                    const xx = coord.scaleX(e.movementX);
-                    const yy = coord.scaleY(e.movementY);
+                    const xx = AMove[0] - ADown[0];
+                    const yy = AMove[1] - ADown[1];
 
                     selectedRectSize.setAttributeNS(null, 'width', w + xx);
                     selectedRectSize.setAttributeNS(null, 'height', h + yy);
@@ -148,6 +155,9 @@
                         selectedRect = selected;
                     } else if (2 === e.button) {
                         selectedRectSize = selected;
+                        // wdown, hdown when selected
+                        selectedRectSize.setAttributeNS(null, 'data-wdown', selectedRectSize.getAttributeNS(null, 'width'));
+                        selectedRectSize.setAttributeNS(null, 'data-hdown', selectedRectSize.getAttributeNS(null, 'height'));
                     }
 
                     // -- selectedRectCursor is common
@@ -178,7 +188,10 @@
                 coord.A(xx, yy);
 
                 svg.setAttributeNS(null, 'viewBox', coord.getViewBox());
-            }, { passive: true });
+
+                // -- prevent scroll down in small window
+                e.preventDefault();
+            }, { passive: false });
 
             function createUserRect() {
                 const obj = {
@@ -203,7 +216,7 @@
             }
         }
 
-        const events = initEvent(svg = document.getElementById('svg'));
+        window.events = initEvent(svg = document.getElementById('svg'));
         window.addEventListener('keyup', (e) => {
             if ('1' === e.key) {
                 // -- create a rect at mouse position

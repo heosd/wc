@@ -31,10 +31,10 @@
 
 # Drag Rect
 - down : selectedRect = find xywh rect, selectedRectCursor = x, y
-- move : x + movement + selectedRectCursor
+- move : x - selectedRectCursor
 - up : dismiss
 
 # Drag Rect Size
-- down : selectedRectSize = find xywh rect, selectedRectCursor = x, y
-- move : w + movementX
+- down : selectedRectSize = find xywh rect, attribute data-wdown data-hdown
+- move : wdown + (move - down)
 - up : dismiss
