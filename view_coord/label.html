@@ -54,9 +54,9 @@
 
         header {
             display: grid;
-            grid-template-columns: 1fr 2fr 1fr 1fr 1fr 2fr 1fr 1fr;
+            grid-template-columns: 1fr 3fr 1fr 1fr 1fr 2fr 1fr 1fr;
             grid-column-gap: 0px;
-            font-size: 1.5rem;
+            /* font-size: 1.3rem; */
             font-weight: 800;
         }
 
@@ -64,6 +64,9 @@
             cursor: pointer;
         }
 
+        .text-center {
+            text-align: center;
+        }
 
         #area-edit {
             border: 1px solid black;
@@ -71,7 +74,7 @@
 
         .section-main {
             display: grid;
-            grid-template-columns: 8fr 2fr;
+            grid-template-columns: 5fr 5fr;
             grid-column-gap: 0px;
         }
 
@@ -79,25 +82,32 @@
             display: none;
         }
 
+        #txtFileName {
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
     </style>
 </head>
 
 <body>
     <header class="hide-before">
-        <div><span id="arrowLeft" class="pointer" onclick="onClickFile(-1)">&ShortLeftArrow; Prev</span></div>
+        <div class="text-center"><span id="arrowLeft" class="pointer" onclick="onClickFile(-1)">&ShortLeftArrow;
+                Prev</span></div>
         <div><span id="txtFileName"></span></div>
-        <div><span id="arrowRight" class="pointer" onclick="onClickFile(1)">Next &ShortRightArrow;</span></div>
+        <div class="text-center"><span id="arrowRight" class="pointer" onclick="onClickFile(1)">Next
+                &ShortRightArrow;</span></div>
         <div><span id="txtFileIndex"></span></div>
         <div><span id="txtFileInfo1"></span></div>
         <div><span id="txtFileInfo2"></span></div>
         <div>
             <button onclick="onClickExportYOLO()">YOLO</button>
+            <input type="checkbox" id="chkFitImage" checked>
+            <label for="chkFitImage">Fit</label>
         </div>
     </header>
     <section id="section-main" class="section-main hide-before">
         <article id="area-edit">
-            <svg id="svg" xmlns="http://www.w3.org/2000/svg" style="width: 1000px; height: 1000px;"
-                pointer-events="all">
+            <svg id="svg" xmlns="http://www.w3.org/2000/svg" style="width: 800px; height: 800px;" pointer-events="all">
                 <defs>
                     <linearGradient id="gg" x1="0%" y1="0%" x2="100%" y2="0%">
                         <stop offset="0%" style="stop-color:rgb(255,255,0);stop-opacity:1" />
@@ -105,12 +115,15 @@
                     </linearGradient>
                 </defs>
                 <image id="svg-image" pointer-events="none"></image>
+                <circle id="whiteCircle" cx="0" cy="0" r="10000" fill="white"></circle>
                 <!-- <circle fill='url(#gg)' cx="500" cy="500" r="1000" pointer-events="none" /> -->
                 <!-- <rect x="200" y="200" width="100" height="100" fill="none" stroke="red" stroke-width="5"
                     pointer-events="none"></rect> -->
             </svg>
         </article>
-        <article id="area-list"></article>
+        <article id="area-list">
+            <canvas id="canvas" width="800" height="800"></canvas>
+        </article>
         <article id="area-result">
             <textarea id="txtResult" cols="120" rows="10"></textarea>
         </article>
@@ -124,8 +137,6 @@
         <div class="abs-center" style="display: none"></div>
     </section>
 
-    <!-- <button onclick="onClickZoom(1)">+1</button>
-    <button onclick="onClickZoom(-1)">-1</button> -->
     <div>
     </div>
 
@@ -230,19 +241,40 @@
 
         // -- none blocking function
         function setSVGImage(file) {
+            const wc = document.getElementById('whiteCircle');
+            wc.setAttributeNS(null, "visibility", "visible");
+
             const reader = new FileReader();
             reader.readAsDataURL(file);
             reader.onload = () => {
                 const img = document.getElementById('svg-image');
+                img.onload = () => {
+                    const rect = img.getBoundingClientRect();
+                    const info = document.getElementById('txtFileInfo1')
+                    info.textContent = `${rect.width} x ${rect.height}`;
+
+                    // -- kinda weired but width height updated here
+                    fileManager.meta.width = rect.width;
+                    fileManager.meta.height = rect.height;
+
+                    // -- fit image
+                    if (isFitChecked()) {
+                        const coord = svgLabel.coord;
+                        if (rect.width > coord.bw || rect.height > coord.bh) {
+                            const rw = coord.bw / rect.width;
+                            const rh = coord.bh / rect.height;
+                            // -- smaller to ratio
+                            const ratio = parseFloat(Math.min(rw, rh).toFixed(2));
+
+                            coord.ratio = ratio;
+                            svg.setAttributeNS(null, "viewBox", coord.getViewBox());
+                        }
+                    }
+
+                    wc.setAttributeNS(null, "visibility", "hidden");
+                }
+
                 img.setAttribute('href', reader.result);
-
-                const rect = img.getBoundingClientRect();
-                const info = document.getElementById('txtFileInfo1')
-                info.textContent = `${rect.width} x ${rect.height}`;
-
-                // -- kinda weired but width height updated here
-                fileManager.meta.width = rect.width;
-                fileManager.meta.height = rect.height;
             }
 
             reader.onerror = (e) => {
@@ -284,8 +316,10 @@
 
             if (-1 === rel) {
                 fileManager.prev();
+                svgLabel.moveZero();
             } else if (1 === rel) {
                 fileManager.next();
+                svgLabel.moveZero();
             }
 
             refreshHeader();
@@ -310,8 +344,8 @@
         }
     </script>
 
-
     <script src="./ViewCoord.js"></script>
+    <script src="./opencv.js"></script>
     <script>
         function onClickZoom(v) {
             coord.plusRatioIdx(v);
@@ -325,9 +359,13 @@
 
             const coord = new ViewCoord();
 
-            const rect = svg.getBoundingClientRect();
-            coord.B(rect.width, rect.height);
-            svg.setAttributeNS(null, 'viewBox', coord.getViewBox());
+            // -- this may call later
+            function initSize() {
+                const rect = svg.getBoundingClientRect();
+                coord.B(rect.width, rect.height);
+                svg.setAttributeNS(null, 'viewBox', coord.getViewBox());
+            }
+            initSize();
 
             let AMove = [], ADown = [];
             let BMove = [], BDown = [];
@@ -510,9 +548,7 @@
                 const list = [];
                 svg.querySelectorAll('rect').forEach(rect => {
                     const obj = {};
-                    LIST_XYWHG.forEach(k => {
-                        obj[k] = rect.getAttributeNS(null, k);
-                    });
+                    LIST_XYWHG.forEach(k => obj[k] = rect.getAttributeNS(null, k));
                     list.push(obj);
                 });
 
@@ -521,13 +557,11 @@
 
             function setRectList(list) {
                 list.forEach(obj => {
-                    console.log(obj);
                     // -- default rect obj attributes
                     const rectObj = getRectObj();
                     // -- copy values
                     LIST_XYWHG.forEach(k => rectObj[k] = obj[k]);
                     // -- create rect
-                    console.log(rectObj);
                     const r = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
                     for (const [k, v] of Object.entries(rectObj)) {
                         r.setAttributeNS(null, k, v);
@@ -541,6 +575,12 @@
                 svg.querySelectorAll('rect').forEach(rect => rect.remove());
             }
 
+            function moveZero() {
+                coord.A(0, 0);
+                coord.ratio = 1;
+                initSize();
+            }
+
             function noteViewBoxChanged() {
                 const vb = svg.getAttributeNS(null, 'viewBox');
                 const r = coord.ratio;
@@ -552,6 +592,8 @@
             let fnDismiss = () => { };
 
             return {
+                initSize: initSize,
+                moveZero, moveZero,
                 createUserRect: createUserRect,
                 coord: coord,
                 getRectList: getRectList,
@@ -587,11 +629,16 @@
             const map = fileManager.allMetas;
             const fixed = 5;
 
+            const files = [];
+
             const result = document.getElementById('txtResult');
             const lines = [];
 
             map.forEach((v, k) => {
                 const fileName = k;
+                const file = {
+                    name: changeFileExt(fileName, 'txt'),
+                };
                 lines.push(fileName);
                 if (0 < v.width && 0 < v.height && v.labels?.length) {
                     const scaleX = ViewCoord.scaleLinear([0, v.width], [0, 1]);
@@ -615,13 +662,50 @@
                         listYoloItem.push(str);
                     });
 
+                    if (listYoloItem.length) {
+                        file.blob = new Blob([listYoloItem.join('\n')]);
+                        files.push(file);
+                    }
+
                     lines.push(...listYoloItem);
                 }
             });
-
             result.value = lines.join('\n')
+
+            saveInDir(files);
         }
 
+        function changeFileExt(src, to) {
+            return src.replace(/\..*$/, '') + '.' + to;
+        }
+
+        function isFitChecked() {
+            return document.getElementById('chkFitImage').checked;
+        }
+
+        async function saveInDir(list) {
+            try {
+                const dirHandle = await window.showDirectoryPicker({ mode: 'readwrite', startIn: 'downloads' });
+
+                for (let i = 0; i < list.length; i++) {
+                    const item = list[i];
+                    const name = item.name;
+                    const blob = item.blob;
+
+                    const fileHandle = await dirHandle.getFileHandle(name, { create: true });
+                    const writable = await fileHandle.createWritable();
+                    await writable.write(blob);
+                    await writable.close();
+                }
+            } catch (e) {
+                console.error(e);
+                if ('AbortError' === e.name) {
+                    console.log('User canceled');
+                } else {
+                    alert(`An error while saving files`);
+                }
+            }
+        }
     </script>
 </body>
 

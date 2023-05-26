@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File saving with Browser API</title>
+</head>
+
+<body>
+    <button onclick="onClickSave()">Save 1 file</button>
+    <button onclick="onClickSaveList()">Save in dir</button>
+
+    <script>
+
+        function onClickSave() {
+            createBlob("Test string blob");
+            saveFile(blob);
+        }
+
+        function onClickSaveList() {
+            const f1 = {
+                name: "file1.txt",
+                blob: createBlob('file1 text ends with new line\n')
+            };
+
+            const f2 = {
+                name: "file2.txt",
+                blob: createBlob({json: 'yes', type: 123, ff: 1.2})
+            };
+
+            const list = [f1, f2];
+
+            // -- not waiting async
+            saveInDir(list);
+
+        }
+
+        function createBlob(src) {
+            if ('string' === typeof src) {
+                return new Blob([src])
+            } else if ('object' === typeof src) {
+                return new Blob([JSON.stringify(src, null, 2)], { type: "application/json" });
+            }
+        }
+
+        async function saveFile(bloc) {
+            try {
+                const handle = await window.showSaveFilePicker({
+                    types: [{
+                        accept: {
+                            // Omitted
+                        },
+                    }],
+                });
+                const writable = await handle.createWritable();
+                await writable.write(blob);
+                await writable.close();
+                return handle;
+            } catch (err) {
+                console.error(err.name, err.message);
+            }
+        };
+
+        async function saveInDir(list) {
+            try {
+                // -- mode : read, readwrite
+                // -- startIn : downloads, music, pictures, videos, desktop, documents 
+                const dirHandle = await window.showDirectoryPicker({mode: 'readwrite', startIn: 'downloads'});
+                console.log(`Got Directory handle`);
+                console.log(dirHandle);
+
+                for (let i = 0; i < list.length; i++) {
+                    const item = list[i];
+                    const name = item.name;
+                    const blob = item.blob;
+
+                    console.log(`Trying [${i}] of item, ${name}`);
+
+                    const fileHandle = await dirHandle.getFileHandle(name, { create: true });
+                    console.log(`File handle opened, ${name}`);
+                    const writable = await fileHandle.createWritable();
+                    console.log(`writable opened, ${name}`);
+                    await writable.write(blob);
+                    console.log(`write done, ${name}`);
+                    await writable.close();
+                    console.log(`close, ${name}`);
+                }
+            } catch(e) {
+                console.error(e);
+                if('AbortError' === e.name) {
+                    console.log('User canceled');
+                } else {
+                    alert(`An error while saving files`);
+                }
+            }
+        }
+    </script>
+</body>
+
+</html>
